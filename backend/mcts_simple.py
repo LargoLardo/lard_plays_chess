@@ -210,7 +210,7 @@ if __name__ == "__main__":
     print(f"Device: {device}")
     
     net = ChessNet(num_res_blocks=4, channels=128).to(device)
-    mcts = SimpleMCTS(net, device, num_sims=50)
+    mcts = MCTS(net, device, num_sims=50)
     
     board = chess.Board()
     root = mcts.run(board, add_noise=True)

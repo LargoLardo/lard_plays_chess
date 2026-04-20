@@ -5,7 +5,7 @@ import chess
 import argparse
 
 from network import ChessNet
-from mcts import BatchedMCTS
+from mcts_simple import BatchedMCTS
 from play import *
 # C:\Users\ZhaoLo\chess\backend\venv\Scripts\activate.bat
 # python main.py checkpoint_iter0050.pt --color white --sims 50

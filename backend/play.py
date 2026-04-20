@@ -20,7 +20,7 @@ import chess
 import torch
 
 from network import ChessNet
-from mcts import BatchedMCTS
+from mcts_simple import BatchedMCTS
 
 
 def display_board(board: chess.Board, flip: bool = False):
