@@ -498,7 +498,7 @@ def train_on_dataset_from_loaded_checkpoint(path: str):
         load_time = time.time() - load_start
         
         if len(new_samples) == 0:
-            print("  No more samples available in dataset!")
+            print("No more samples available in dataset!")
             break
         
         buffer.add(new_samples)

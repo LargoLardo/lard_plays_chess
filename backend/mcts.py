@@ -52,6 +52,8 @@ class MCTSNode:
     def puct_score(self, c_puct: float, parent_visits: int) -> float:
         """PUCT formula: Q(s,a) + U(s,a)"""
         total_visits = self.visit_count + self.virtual_loss
+        if self.q_value > 0.8:
+            c_puct /= 4
         u = c_puct * self.prior * math.sqrt(parent_visits) / (1 + total_visits)
         return self.q_value + u
 
@@ -217,6 +219,11 @@ class MCTS:
                 child_board = node.board.copy(stack=False)
                 child_board.push(move)
                 prior = float(node_probs[move_to_action(move)])
+
+                # -------- Slight bias towards checks and captures in order to promote attacking behaviours when winning/explore them more
+                if node.board.is_capture(move) or child_board.is_check():
+                    prior *= 1.2
+
                 node.children[move] = MCTSNode(
                     board=child_board,
                     parent=node,
@@ -230,8 +237,6 @@ class MCTS:
         outcome = node.board.outcome()
 
         # print(f"terminal node reached {ply_from_root} deep")
-        # print(outcome.winner)
-        # print(node.board.turn)
         # print(node.board)
 
         if outcome is None or outcome.winner is None:
