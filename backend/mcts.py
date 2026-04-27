@@ -17,7 +17,7 @@ import numpy as np
 import torch
 from typing import Optional
 
-from board_encoder import board_to_tensor, legal_moves_mask, move_to_action, NUM_ACTIONS
+from board_encoder import board_to_tensor, legal_moves_mask, move_to_action, canonicalize_board
 from network import ChessNet
 
 MATE_BASE = 1.0
@@ -108,7 +108,7 @@ class MCTS:
     
     def run(self, board: chess.Board, add_noise: bool = False) -> MCTSNode:
         """Run num_sims simulations with batched evaluation."""
-        root = MCTSNode(board=board.copy(stack=False))
+        root = MCTSNode(board=canonicalize_board(board.copy(stack=False)))
 
         # Expand root first
         self._expand_batch([root])
@@ -175,16 +175,12 @@ class MCTS:
             self._expand_batch(non_terminal_nodes)
 
             batch_tensors = []
-            batch_masks = []
 
             for node in non_terminal_nodes:
                 tensor = board_to_tensor(node.board, device=self.device)
-                mask = legal_moves_mask(node.board, device=self.device)
                 batch_tensors.append(tensor)
-                batch_masks.append(mask)
 
             batch_tensors = torch.stack(batch_tensors, dim=0)
-            batch_masks = torch.stack(batch_masks, dim=0)
 
             self.net.eval()
             policy_logits, batch_values = self.net(batch_tensors)
@@ -231,6 +227,7 @@ class MCTS:
             for move in node.board.legal_moves:
                 child_board = node.board.copy(stack=False)
                 child_board.push(move)
+                child_board = canonicalize_board(child_board)
                 prior = float(node_probs[move_to_action(move)])
 
                 # # -------- (heuristic) Slight bias towards checks and captures in order to promote attacking behaviours when winning/explore them more
@@ -256,10 +253,7 @@ class MCTS:
             return DRAW_VALUE
 
         # In a checkmated position, board.turn is the loser.
-        if outcome.winner != node.board.turn:
-            return max(MATE_BASE - ply_from_root, 1.0)
-        else:
-            return min(-MATE_BASE + ply_from_root, -1.0)
+        return max(MATE_BASE - ply_from_root, 1.0)
     
     def _backprop(self, path: list[MCTSNode], value: float) -> None:
         """Update visit counts and value sums along path."""

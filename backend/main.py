@@ -7,16 +7,17 @@ import argparse
 from network import ChessNet
 from mcts import MCTS
 from play import *
+from board_encoder import swap_move_color
 # C:\Users\ZhaoLo\chess\backend\venv\Scripts\activate.bat
 
 # 500 sims for fast, weaker play
 # 1600 sims for normal, stronger play
 
-# python main.py dataset_trained_40iter.pt --color white --sims 500
-# python main.py dataset_trained_140iter.pt --color white --sims 1600
+# python main.py dataset_trained_40iter.pt --color white --sims 1600
+# python main.py dataset_trained_140iter.pt --color white --sims 500
 # python main.py dataset_trained_2000iter.pt --color white --sims 300
-# python main.py dataset_trained_2900iter.pt --color white --sims 1600
-# python main.py dataset_trained_4000iter.pt --color white --sims 1600
+# python main.py dataset_trained_2900iter.pt --color white --sims 500
+# python main.py checkpoint_iter0004.pt --color white --sims 100
 
 # ------------ ENGINE LOGIC --------------
 
@@ -57,6 +58,10 @@ def makeResponse(move_dict: dict) -> dict:
     print(board)
 
     response = ai_move(board, mcts)
+
+    if board.turn == chess.BLACK:
+        response = swap_move_color(response)
+
     san = board.san(response)
     board.push(response)
 

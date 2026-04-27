@@ -21,6 +21,7 @@ import torch
 
 from network import ChessNet
 from mcts import MCTS
+from board_encoder import swap_move_color, canonicalize_board
 
 
 def display_board(board: chess.Board):
@@ -64,6 +65,27 @@ def get_user_move(board: chess.Board) -> chess.Move | None:
         except ValueError:
             print(f"Invalid syntax: {inp}. Use SAN (e.g., e4, Nf3, O-O)")
 
+def get_line(
+    root, 
+    mcts: MCTS,
+    depth: int = 5,
+) -> list:
+    line = list()
+    cur_node = root
+    for _ in range(depth):
+        try:
+            moves, probs = mcts.get_policy(cur_node)
+            best_move = moves[int(probs.argmax())]
+
+            print(cur_node.board)
+            print(best_move)
+            print()
+            line.append((best_move, cur_node.board))
+            cur_node = cur_node.children[best_move]
+        except ValueError:
+            return line
+    return line
+
 
 def ai_move(
     board: chess.Board,
@@ -76,21 +98,45 @@ def ai_move(
     
     root = mcts.run(board, add_noise=False)
     moves, probs = mcts.get_policy(root)
-    
+
     # Show top-3 candidate moves with visit counts
     if show_thinking:
         top_k = sorted(
-            zip(moves, probs, [root.children[m].visit_count for m in moves]),
+            zip(
+                moves,
+                probs, 
+                [root.children[m].visit_count for m in moves]
+            ),
             key=lambda x: -x[1]
-        )
-        # )[:10]
+        )[:5]
         print("\r" + " " * 30 + "\r", end="")  # clear "thinking..." line
 
         # print("root q value", root.q_value)
+        print(board.fen())
+
+        line = get_line(root, mcts, 3)
+
+        print(line)
+
+        for idx, line_item in enumerate(line):
+            line_move, line_board = line_item
+            if idx % 2 == 0:
+                mirrored = line_board.mirror()
+                line[idx] = mirrored.san(swap_move_color(line_move))
+            else:
+                line[idx] = line_board.san(line_move)
+
+        print(f"Line: ", end="")
+        for i in range(len(line)):
+            if i % 2 == 0:
+                print(f"(self, {line[i]}) ", end="")
+            else:
+                print(f"(opp, {line[i]}) ", end="")
+        print()
 
         for m, p, visits in top_k:
             q = root.children[m].q_value
-            print(f"  {board.san(m):8s}  visits={visits:4d}  prob={p:.3f}  Q={q:+.3f}")
+            print(f"  {board.san(swap_move_color(m)):8s}  visits={visits:4d}  prob={p:.3f}  Q={q:+.3f}")
     
     best_move = moves[int(probs.argmax())]
     return best_move
@@ -170,7 +216,7 @@ def load_checkpoint(path: str):
 
 
 def main():
-    # python play.py dataset_trained_4000iter.pt --sims 500
+    #python play.py dataset_trained_2900iter.pt --color white --sims 500
 
     parser = argparse.ArgumentParser(description="Play against trained chess AI")
     parser.add_argument("checkpoint", help="Path to checkpoint .pt file")
@@ -201,13 +247,13 @@ def main():
         network=net,
         device=device,
         num_sims=args.sims,
-        batch_size=32,  # 1 GPU call per move
-        temperature=0.0,         # deterministic best move
+        batch_size=32,
+        temperature=0.0,  
+        c_puct=6.0
     )
 
     user_is_white = (args.color == "white")
-    board = chess.Board()
-    board.set_fen('3k4/8/8/8/8/8/3p4/K7 b - - 0 1')
+    board = chess.Board("k2n4/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
     print("=" * 60)
     print(f"  You are playing as {args.color.upper()}")

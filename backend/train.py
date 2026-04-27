@@ -25,7 +25,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-from board_encoder import board_to_tensor, move_to_action, NUM_ACTIONS
+from board_encoder import board_to_tensor, move_to_action, NUM_ACTIONS, canonicalize_board, canonicalize_move
 from network import ChessNet, AlphaZeroLoss, count_parameters
 from mcts import MCTS
 
@@ -46,8 +46,8 @@ class Config:
     batch_size: int = 100
     train_steps: int = 100
     lr: float = 1e-3
-    num_iterations: int = 4000
-    checkpoint_every: int = 200
+    num_iterations: int = 100
+    checkpoint_every: int = 1
 
     # Self-play
     games_per_iter: int = 10
@@ -59,7 +59,7 @@ class Config:
     samples_per_file: int = 2500   # active_files * samples_per_file ≈ max_samples
     max_samples: int = active_files * samples_per_file
     top_k_moves: int = 3
-    path: str = r'C:\Users\login\tree_fish\tree_fish\backend\data'
+    path: str = r'C:\Users\ZhaoLo\chess\backend\data'
     
     # Misc
     device: str = "cuda"
@@ -79,7 +79,6 @@ def plot_loss(loss_history: list, policy_history: list, value_history: list):
     plt.plot(policy_history, label="Policy")
     plt.plot(value_history, label="Value")
     plt.legend()
-    plt.pause(1)
 
 # ---------------------------------------------------------------------------
 # Replay buffer
@@ -136,10 +135,14 @@ def play_game(net: ChessNet, mcts: MCTS, device: torch.device) -> list[GameSampl
         moves, probs = mcts.get_policy(root)
         
         # Store MCTS policy for this position
+        canon_board = canonicalize_board(board.copy(stack=False))
+
         policy_vec = torch.zeros(NUM_ACTIONS, dtype=torch.float32)
         for m, p in zip(moves, probs):
-            policy_vec[move_to_action(m)] = p
-        history.append((board.copy(stack=False), policy_vec))
+            canon_move = canonicalize_move(m, board)
+            policy_vec[move_to_action(canon_move)] = p
+
+        history.append((canon_board, policy_vec))
         
         # Sample move
         if mcts.temperature > 0:
@@ -194,9 +197,11 @@ def chessbench_record_to_sample(
     import chess
     
     board = chess.Board(record["fen"])
+
+    canon_board = canonicalize_board(board)
     
     # --- 1. Encode board ---
-    board_tensor = board_to_tensor(board, device=torch.device("cpu"))
+    board_tensor = board_to_tensor(canon_board, device=torch.device("cpu"))
     
     # --- 2. Build policy vector ---
     policy_vec = torch.zeros(NUM_ACTIONS, dtype=torch.float32)
@@ -206,9 +211,10 @@ def chessbench_record_to_sample(
     
     for move_uci, info in record["moves"].items():
         move = chess.Move.from_uci(move_uci)
+        move = canonicalize_move(move)
         
-        if move not in board.legal_moves:
-            continue  # safety
+        if move not in canon_board.legal_moves:
+            raise Exception("(Record error, one of the legal moves in the record isn't actually legal) move not in canon_board.legal_moves")  # safety
         
         win_prob = info["win_prob"]
         
@@ -257,7 +263,6 @@ def chessbench_record_to_sample(
             policy_vec[action] = p
     
     # --- 4. Compute value target ---
-    # Expected value under the distribution
     outcome = torch.sum(probs * scores).item()
     
     return GameSample(board_tensor, policy_vec, outcome)

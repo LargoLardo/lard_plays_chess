@@ -249,7 +249,7 @@ def count_parameters(model: nn.Module) -> int:
 
 if __name__ == "__main__":
     import chess
-    from board_encoder import board_to_tensor, legal_moves_mask
+    from board_encoder import board_to_tensor, legal_moves_mask, canonicalize_board, action_to_move
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -260,10 +260,21 @@ if __name__ == "__main__":
 
     # Quick forward pass on the starting position
     board = chess.Board()
+    move = board.parse_san('e4')
+    board.push(move)
+    print(board.turn)
+    print(board)
+    board = canonicalize_board(board)
+    print(board.turn)
+    print(board)
     tensor = board_to_tensor(board, device=device)
     mask   = legal_moves_mask(board, device=device)
     probs, val = net.predict(tensor, mask)
+    indices = probs.topk(5).indices.tolist()
+    moves = list()
+    for index in indices:
+        moves.append(action_to_move(index, board))
 
     print(f"Policy distribution over {mask.sum().item()} legal moves")
     print(f"Position value (White POV): {val:.4f}")
-    print(f"Top-5 action indices: {probs.topk(5).indices.tolist()}")
+    print(f"Top-5 action indices: {moves}")
