@@ -7,6 +7,7 @@ import argparse
 from network import ChessNet
 from mcts import MCTS
 from play import *
+import time
 # C:\Users\login\tree_fish\tree_fish\backend\venv\Scripts\activate.bat
 
 # 500 sims for fast, weaker play
@@ -38,7 +39,7 @@ def resetBoard(fen: dict) -> dict:
     return True
 
 def makeResponse(move_dict: dict) -> dict:
-    global board, mcts, player_color
+    global board, mcts, endgame_engine, player_color
     from_square = chess.parse_square(move_dict['from'])
     to_square = chess.parse_square(move_dict['to'])
     promotion = PROMOTION_MAP.get(move_dict['promotion'])
@@ -52,12 +53,15 @@ def makeResponse(move_dict: dict) -> dict:
     board.push(move)
     print(board)
 
-    response = ai_move(board, mcts)
+    start_time = time.time()
+    response = ai_move(board, mcts, endgame_engine)
+    end_time = time.time()
 
     san = board.san(response)
     board.push(response)
 
-    print(f"AI played:  {san}\n")
+    print(f"AI played:  {san}")
+    print(f"AI processing time: {end_time - start_time:.2f} seconds\n")
 
     #Have some processing here
     return {
@@ -90,7 +94,7 @@ def reset_board():
 # ------------ BACKEND STARTUP--------------
 
 if __name__ == "__main__":
-    global mcts
+    global mcts, endgame_engine
 
     try:
         parser = argparse.ArgumentParser(description="Play against trained chess AI")
@@ -119,6 +123,9 @@ if __name__ == "__main__":
     net.eval()
     print(f"Loaded iteration {iteration} on {device}")
     print(f"Architecture: {num_res_blocks} res-blocks, {channels} channels\n")
+
+    # Set up endgame engine
+    endgame_engine = EndgameMinimax()
 
     # Set up MCTS
     mcts = MCTS(

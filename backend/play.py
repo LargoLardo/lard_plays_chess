@@ -21,6 +21,7 @@ import torch
 
 from network import ChessNet
 from mcts import MCTS
+from endgame_search import EndgameMinimax
 from board_encoder import swap_move_color, canonicalize_board
 
 
@@ -87,59 +88,74 @@ def get_line(
 def ai_move(
     board: chess.Board,
     mcts: MCTS,
+    endgame_engine: EndgameMinimax,
     show_thinking: bool = True,
     add_noise: bool = False
 ) -> chess.Move:
     """Generate AI move using MCTS."""
     if show_thinking:
         print("AI is thinking...", end="", flush=True)
-    
-    root = mcts.run(board=board, add_noise=add_noise)
-    moves, probs = mcts.get_policy(root)
 
-    # Show top-3 candidate moves with visit counts
-    if show_thinking:
-        top_k = sorted(
-            zip(
-                moves,
-                [root.children[m].prior for m in moves], 
-                [root.children[m].visit_count for m in moves],
-                probs
-            ),
-            key=lambda x: -x[3]
-        )[:10]
-        print("\r" + " " * 30 + "\r", end="")  # clear "thinking..." line
+    num_pieces = len(board.piece_map())
+    if num_pieces < 14:
+        endgame = True
+    else:
+        endgame = False   
 
-        # print("root q value", root.q_value)
-        print(board.fen())
+    if not endgame:
+        root = mcts.run(board=board, add_noise=add_noise)
+        moves, probs = mcts.get_policy(root)
 
-        line = get_line(root, mcts, depth=5)
+        # Show top-3 candidate moves with visit counts
+        if show_thinking:
+            top_k = sorted(
+                zip(
+                    moves,
+                    [root.children[m].prior for m in moves], 
+                    [root.children[m].visit_count for m in moves],
+                    probs
+                ),
+                key=lambda x: -x[3]
+            )[:10]
+            print("\r" + " " * 30 + "\r", end="")  # clear "thinking..." line
 
-        for idx, line_item in enumerate(line):
-            line_move, line_board = line_item
-            if idx % 2 == 0:
-                mirrored = line_board.mirror()
-                line[idx] = mirrored.san(swap_move_color(line_move))
-            else:
-                line[idx] = line_board.san(line_move)
+            # print("root q value", root.q_value)
+            print(board.fen())
 
-        print(f"Line: ", end="")
-        for i in range(len(line)):
-            if i % 2 == 0:
-                print(f"(self, {line[i]}) ", end="")
-            else:
-                print(f"(opp, {line[i]}) ", end="")
-        print()
+            line = get_line(root, mcts, depth=5)
 
-        for m, prior, visits, prob in top_k:
-            q = root.children[m].q_value
-            display_move = swap_move_color(m) if board.turn == chess.BLACK else m
-            print(f"  {board.san(display_move):8s}  visits={visits:4d}  prior={prior:.3f}  Q={q:+.3f}")
-    
-    best_move = moves[int(probs.argmax())]
+            for idx, line_item in enumerate(line):
+                line_move, line_board = line_item
+                if idx % 2 == 0:
+                    mirrored = line_board.mirror()
+                    line[idx] = mirrored.san(swap_move_color(line_move))
+                else:
+                    line[idx] = line_board.san(line_move)
 
-    if board.turn == chess.BLACK:
-        best_move = swap_move_color(best_move)
+            print(f"Line: ", end="")
+            for i in range(len(line)):
+                if i % 2 == 0:
+                    print(f"(self, {line[i]}) ", end="")
+                else:
+                    print(f"(opp, {line[i]}) ", end="")
+            print()
+
+            for m, prior, visits, prob in top_k:
+                q = root.children[m].q_value
+                display_move = swap_move_color(m) if board.turn == chess.BLACK else m
+                print(f"  {board.san(display_move):8s}  visits={visits:4d}  prior={prior:.3f}  Q={q:+.3f}")
+        
+        best_move = moves[int(probs.argmax())]
+        
+        if board.turn == chess.BLACK:
+            best_move = swap_move_color(best_move)
+
+    else:
+        best_move, score, nodes = endgame_engine.search(board, depth=6)
+
+        print("Best move:", best_move)
+        print("Score:", score)
+        print("Nodes searched:", nodes)
 
     return best_move
 
@@ -255,6 +271,9 @@ def main():
         c_puct=6.0
     )
 
+    # Set up endgame engine
+    endgame_engine = EndgameMinimax()
+
     user_is_white = (args.color == "white")
     board = chess.Board("k2n4/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
@@ -288,7 +307,7 @@ def main():
         
         else:
             # AI's turn
-            move = ai_move(board, mcts, show_thinking=not args.no_thinking)
+            move = ai_move(board, mcts, endgame_engine, show_thinking=not args.no_thinking)
             san = board.san(move)
             board.push(move)
             move_history.append(san)
