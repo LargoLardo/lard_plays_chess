@@ -7,13 +7,16 @@ import { resetBoard } from './move_to_flask.js';
 
 //https://react-chessboard.vercel.app/?path=/docs/how-to-use-basic-examples--docs
 
+const starting_fen = "8/3kq3/8/8/8/p7/3K4/8 w - - 0 1";
+//rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+
 function App() {
-  const [game, setGame] = useState(new Chess());
+  const [game, setGame] = useState(new Chess(starting_fen));
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [gameStatus, setGameStatus] = useState(null);
   
   useEffect(() => {
-    resetBoard()
+    resetBoard(starting_fen)
   }, []);
 
   async function makeMove(move) {

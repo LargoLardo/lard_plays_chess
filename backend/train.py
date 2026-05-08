@@ -45,9 +45,9 @@ class Config:
     buffer_size: int = 100_000
     batch_size: int = 100
     train_steps: int = 100
-    lr: float = 1e-3
-    num_iterations: int = 100
-    checkpoint_every: int = 1
+    lr: float = 5e-5
+    num_iterations: int = 2000
+    checkpoint_every: int = 100
 
     # Self-play
     games_per_iter: int = 10
@@ -59,7 +59,7 @@ class Config:
     samples_per_file: int = 2500   # active_files * samples_per_file ≈ max_samples
     max_samples: int = active_files * samples_per_file
     top_k_moves: int = 3
-    path: str = r'C:\Users\ZhaoLo\chess\backend\data'
+    path: str = r'C:\Users\login\tree_fish\tree_fish\backend\data2'
     
     # Misc
     device: str = "cuda"
@@ -211,7 +211,7 @@ def chessbench_record_to_sample(
     
     for move_uci, info in record["moves"].items():
         move = chess.Move.from_uci(move_uci)
-        move = canonicalize_move(move)
+        move = canonicalize_move(move, board)
         
         if move not in canon_board.legal_moves:
             raise Exception("(Record error, one of the legal moves in the record isn't actually legal) move not in canon_board.legal_moves")  # safety
@@ -439,6 +439,7 @@ def train_on_dataset_from_loaded_checkpoint(path: str):
     # State for each active file stream
     stream_states = []
     next_file_idx = 0
+    records_used = 0
 
     def open_new_stream():
         nonlocal next_file_idx
@@ -471,6 +472,7 @@ def train_on_dataset_from_loaded_checkpoint(path: str):
         stream_states[i] = open_new_stream()
 
     def get_mixed_samples(total_n: int) -> list[GameSample]:
+        nonlocal records_used
         samples = []
 
         if len(stream_states) == 0:
@@ -491,7 +493,8 @@ def train_on_dataset_from_loaded_checkpoint(path: str):
                     refill_stream(i)
                     continue
 
-                sample = chessbench_record_to_sample(record)
+                sample = chessbench_record_to_sample(record, records_used)
+                records_used += 1
                 if sample is None:
                     continue
 
@@ -530,7 +533,7 @@ def train_on_dataset_from_loaded_checkpoint(path: str):
         load_time = time.time() - load_start
         
         if len(new_samples) == 0:
-            print("No more samples available in dataset!")
+            print("  No more samples available in dataset!")
             break
         
         buffer.add(new_samples)
@@ -779,8 +782,8 @@ def train_on_dataset():
     print("Training complete!")
 
 def main():
-    train_on_dataset()
-    # train_on_dataset_from_loaded_checkpoint(r"C:\Users\login\tree_fish\tree_fish\checkpoint_iter0500.pt")
+    # train_on_dataset()
+    train_on_dataset_from_loaded_checkpoint(r"C:\Users\login\tree_fish\tree_fish\backend\checkpoint_iter4000.pt")
 
 if __name__ == "__main__":
     main()

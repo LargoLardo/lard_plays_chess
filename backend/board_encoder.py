@@ -41,7 +41,6 @@ def board_to_tensor(board: chess.Board, device: torch.device | None = None) -> t
     and row 7 is rank 8 (consistent with the network seeing the board from
     White's perspective regardless of side to move).
     """
-
     planes = np.zeros((NUM_PLANES, BOARD_SIZE, BOARD_SIZE), dtype=np.float32)
 
     # Piece planes
@@ -164,6 +163,8 @@ def legal_moves_mask(board: chess.Board, device: torch.device | None = None) -> 
     Returns a boolean mask of shape (NUM_ACTIONS,) with True at every index
     corresponding to a legal move in the current position.
     """
+    assert board.turn == chess.WHITE, "legal_moves_mask expected canonical white-to-move board"
+
     mask = torch.zeros(NUM_ACTIONS, dtype=torch.bool)
     for move in board.legal_moves:
         mask[move_to_action(move)] = True
@@ -195,12 +196,6 @@ def canonicalize_move(move: chess.Move, board: chess.Board) -> chess.Move:
 
     return swap_move_color(move)
 
-if __name__ == "__main__":
-    for i in _MOVE_TO_IDX:
-        if i[2] == chess.QUEEN:
-            print((chess.square_name(i[0]), chess.square_name(i[1])))
-    print(len(_MOVE_TO_IDX))
-
 def swap_move_color(move: chess.Move) -> chess.Move:
     def flip_top_bottom(n: int):
         row = n // 8
@@ -211,3 +206,27 @@ def swap_move_color(move: chess.Move) -> chess.Move:
         to_square=flip_top_bottom(move.to_square),
         promotion=move.promotion
     )
+
+def debug_promotions(fen):
+    board = chess.Board(fen)
+    print("Original:")
+    print(board)
+    print("turn:", "white" if board.turn == chess.WHITE else "black")
+
+    board = canonicalize_board(board)
+    print("\nCanonical:")
+    print(board)
+    print("turn:", "white" if board.turn == chess.WHITE else "black")
+
+    mask = legal_moves_mask(board)
+
+    for move in board.legal_moves:
+        if move.promotion:
+            idx = move_to_action(move)
+            print(move, idx, mask[idx].item())
+
+if __name__ == "__main__":
+    for i in _MOVE_TO_IDX:
+        if i[2] == chess.QUEEN:
+            print((chess.square_name(i[0]), chess.square_name(i[1])))
+    print(len(_MOVE_TO_IDX))

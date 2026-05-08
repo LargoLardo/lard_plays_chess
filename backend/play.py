@@ -68,6 +68,7 @@ def get_user_move(board: chess.Board) -> chess.Move | None:
 def get_line(
     root, 
     mcts: MCTS,
+    num_lines: int = 1,
     depth: int = 5,
 ) -> list:
     line = list()
@@ -76,10 +77,6 @@ def get_line(
         try:
             moves, probs = mcts.get_policy(cur_node)
             best_move = moves[int(probs.argmax())]
-
-            print(cur_node.board)
-            print(best_move)
-            print()
             line.append((best_move, cur_node.board))
             cur_node = cur_node.children[best_move]
         except ValueError:
@@ -91,12 +88,13 @@ def ai_move(
     board: chess.Board,
     mcts: MCTS,
     show_thinking: bool = True,
+    add_noise: bool = False
 ) -> chess.Move:
     """Generate AI move using MCTS."""
     if show_thinking:
         print("AI is thinking...", end="", flush=True)
     
-    root = mcts.run(board, add_noise=False)
+    root = mcts.run(board=board, add_noise=add_noise)
     moves, probs = mcts.get_policy(root)
 
     # Show top-3 candidate moves with visit counts
@@ -104,19 +102,18 @@ def ai_move(
         top_k = sorted(
             zip(
                 moves,
-                probs, 
-                [root.children[m].visit_count for m in moves]
+                [root.children[m].prior for m in moves], 
+                [root.children[m].visit_count for m in moves],
+                probs
             ),
-            key=lambda x: -x[1]
-        )[:5]
+            key=lambda x: -x[3]
+        )[:10]
         print("\r" + " " * 30 + "\r", end="")  # clear "thinking..." line
 
         # print("root q value", root.q_value)
         print(board.fen())
 
-        line = get_line(root, mcts, 3)
-
-        print(line)
+        line = get_line(root, mcts, depth=5)
 
         for idx, line_item in enumerate(line):
             line_move, line_board = line_item
@@ -134,11 +131,16 @@ def ai_move(
                 print(f"(opp, {line[i]}) ", end="")
         print()
 
-        for m, p, visits in top_k:
+        for m, prior, visits, prob in top_k:
             q = root.children[m].q_value
-            print(f"  {board.san(swap_move_color(m)):8s}  visits={visits:4d}  prob={p:.3f}  Q={q:+.3f}")
+            display_move = swap_move_color(m) if board.turn == chess.BLACK else m
+            print(f"  {board.san(display_move):8s}  visits={visits:4d}  prior={prior:.3f}  Q={q:+.3f}")
     
     best_move = moves[int(probs.argmax())]
+
+    if board.turn == chess.BLACK:
+        best_move = swap_move_color(best_move)
+
     return best_move
 
 
@@ -216,7 +218,8 @@ def load_checkpoint(path: str):
 
 
 def main():
-    #python play.py dataset_trained_2900iter.pt --color white --sims 500
+    #python play.py dataset_trained_4000iter.pt --color white --sims 500
+    #python play.py checkpoint_iter4000.pt --color black --sims 500
 
     parser = argparse.ArgumentParser(description="Play against trained chess AI")
     parser.add_argument("checkpoint", help="Path to checkpoint .pt file")

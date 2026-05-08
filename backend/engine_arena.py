@@ -4,45 +4,18 @@ import random
 
 from network import ChessNet
 from mcts import MCTS
+from play import ai_move
 
 from tqdm import tqdm
 
-CHECKPOINT1 = r'C:\Users\ZhaoLo\chess\backend\dataset_trained_2900iter.pt'
-CHECKPOINT2 = r'C:\Users\ZhaoLo\chess\backend\dataset_trained_140iter.pt'
-NUM_SIMS = 1000
-NUM_SIMS_2 = 1000
-BATCH_SIZE = 64
+CHECKPOINT1 = r'C:\Users\login\tree_fish\tree_fish\backend\checkpoint_iter4000.pt'
+CHECKPOINT2 = r'C:\Users\login\tree_fish\tree_fish\backend\checkpoint_iter2000.pt'
+NUM_SIMS = 500
+NUM_SIMS_2 = 500
+BATCH_SIZE = 32
 SHOW_THINKING = True
-NUM_GAMES = 1
-C_PUCT = 6.0
-
-def ai_move(
-    board: chess.Board,
-    mcts: MCTS,
-    show_thinking: bool = True,
-) -> chess.Move:
-    """Generate AI move using MCTS."""
-    if show_thinking:
-        print("AI is thinking...", end="", flush=True)
-    
-    root = mcts.run(board, add_noise=False)
-    moves, probs = mcts.get_policy(root)
-    
-    # Show top-3 candidate moves with visit counts
-    if show_thinking:
-        top_k = sorted(
-            zip(moves, probs, [root.children[m].visit_count for m in moves]),
-            key=lambda x: -x[1]
-        )[:10]
-        print("\r" + " " * 30 + "\r", end="")  # clear "thinking..." line
-        for m, p, visits in top_k:
-            q = root.children[m].q_value
-            print(f"  {board.san(m):8s}  visits={visits:4d}  prob={p:.3f}  Q={q:+.3f}")
-        print(board.fen())
-    
-    best_move = moves[int(probs.argmax())]
-    return best_move
-
+NUM_GAMES = 10
+C_PUCT = 5.0
 
 def load_checkpoint(path: str):
     """
@@ -72,14 +45,14 @@ def load_checkpoint(path: str):
         class Config:
             num_res_blocks: int = 4
             channels: int = 128
-            num_sims: int = 100
+            num_sims: int = 500
             num_parallel: int = 64
-            c_puct: float = 2.5
+            c_puct: float = 5.0
             dirichlet_alpha: float = 0.3
             games_per_iter: int = 10
             max_game_moves: int = 200
             replay_buffer_size: int = 20_000
-            batch_size: int = 128
+            batch_size: int = 32
             train_steps: int = 200
             lr: float = 1e-3
             weight_decay: float = 1e-4
@@ -176,11 +149,11 @@ def main():
             is_user_turn = (board.turn == chess.WHITE) == user_is_white
 
             if is_user_turn:
-                move = ai_move(board, mcts, show_thinking=SHOW_THINKING)
+                move = ai_move(board, mcts, show_thinking=SHOW_THINKING, add_noise=True)
                 board.push(move)
             
             else:
-                move = ai_move(board, mcts_2, show_thinking=SHOW_THINKING)
+                move = ai_move(board, mcts_2, show_thinking=SHOW_THINKING, add_noise=True)
                 board.push(move)
             
             print(board.unicode(invert_color=True))

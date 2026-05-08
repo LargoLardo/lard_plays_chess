@@ -7,21 +7,16 @@ import argparse
 from network import ChessNet
 from mcts import MCTS
 from play import *
-from board_encoder import swap_move_color
-# C:\Users\ZhaoLo\chess\backend\venv\Scripts\activate.bat
+# C:\Users\login\tree_fish\tree_fish\backend\venv\Scripts\activate.bat
 
 # 500 sims for fast, weaker play
 # 1600 sims for normal, stronger play
 
-# python main.py dataset_trained_40iter.pt --color white --sims 1600
-# python main.py dataset_trained_140iter.pt --color white --sims 500
-# python main.py dataset_trained_2000iter.pt --color white --sims 300
-# python main.py dataset_trained_2900iter.pt --color white --sims 500
-# python main.py checkpoint_iter0004.pt --color white --sims 100
+# python main.py checkpoint_iter4000.pt --color white --sims 500
 
 # ------------ ENGINE LOGIC --------------
 
-C_PUCT = 6.0
+C_PUCT = 5.0
 """
 (2.5) This solves the "shuffling problem" by making it actually search instead of 
 relying too hard on its undertrained policy/value network 
@@ -37,13 +32,13 @@ PROMOTION_MAP = {
 
 board = chess.Board()
 
-def resetBoard():
+def resetBoard(fen: dict) -> dict:
     global board
-    board = chess.Board()
+    board = chess.Board(fen['fen'])
     return True
 
 def makeResponse(move_dict: dict) -> dict:
-    global board, mcts
+    global board, mcts, player_color
     from_square = chess.parse_square(move_dict['from'])
     to_square = chess.parse_square(move_dict['to'])
     promotion = PROMOTION_MAP.get(move_dict['promotion'])
@@ -58,9 +53,6 @@ def makeResponse(move_dict: dict) -> dict:
     print(board)
 
     response = ai_move(board, mcts)
-
-    if board.turn == chess.BLACK:
-        response = swap_move_color(response)
 
     san = board.san(response)
     board.push(response)
@@ -86,10 +78,14 @@ def response_to_move():
     response = makeResponse(req)
     return response, 200
 
-@app.route("/send_move/reset_board", methods=['GET'])
+@app.route("/send_move/reset_board", methods=['PUT'])
 def reset_board():
-    resetBoard()
-    return "OK", 200
+    req = request.get_json()
+    response = resetBoard(req)
+    if response:
+        return "OK", 200
+    else:
+        return "Error resetting board", 500
 
 # ------------ BACKEND STARTUP--------------
 
@@ -112,6 +108,8 @@ if __name__ == "__main__":
         raise Exception('Missing arguments, try using these: checkpoint_file.pt --color white --sims 50')
 
     ckpt, num_res_blocks, channels, iteration = load_checkpoint(args.checkpoint)
+
+    player_color = chess.WHITE if args.color == "white" else chess.BLACK
 
     # Build network
     net = ChessNet(num_res_blocks=num_res_blocks, channels=channels)

@@ -17,9 +17,15 @@ export default async function sendMove(move_value) {
     }
 }
 
-export async function resetBoard() {
+export async function resetBoard(starting_fen) {
     try {
-        const res = await fetch('/send_move/reset_board')
+        const res = await fetch('/send_move/reset_board', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ fen: starting_fen })
+        });
         if (res.ok) {
             console.log('Backend board reset!')
         } else {

@@ -1,7 +1,7 @@
 import msgpack
 import os
 
-directory = r'C:\Users\login\tree_fish\tree_fish\backend\data'
+directory = r'C:\Users\login\tree_fish\tree_fish\backend\data2'
 
 def load_positions(filepath):
     """Stream positions from a msgpack file."""
@@ -18,6 +18,7 @@ for filename in os.listdir(directory):
     for idx, record in enumerate(load_positions(filepath)):
         fen = record['fen']
         moves = record['moves']
+        # num += 1
 
         if idx % 100_000 == 0:
             print(fen)
