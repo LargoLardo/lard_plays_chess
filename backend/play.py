@@ -24,6 +24,7 @@ from mcts import MCTS
 from endgame_search import EndgameMinimax
 from board_encoder import swap_move_color, canonicalize_board
 
+ENDGAME_DEPTH = 6
 
 def display_board(board: chess.Board):
     """Print the board with coordinates."""
@@ -97,7 +98,7 @@ def ai_move(
         print("AI is thinking...", end="", flush=True)
 
     num_pieces = len(board.piece_map())
-    if num_pieces < 14:
+    if num_pieces < 10:
         endgame = True
     else:
         endgame = False   
@@ -151,7 +152,7 @@ def ai_move(
             best_move = swap_move_color(best_move)
 
     else:
-        best_move, score, nodes = endgame_engine.search(board, depth=6)
+        best_move, score, nodes = endgame_engine.search(board, depth=ENDGAME_DEPTH)
 
         print("Best move:", best_move)
         print("Score:", score)

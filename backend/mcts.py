@@ -234,7 +234,8 @@ class MCTS:
                 child_board = canonicalize_board(child_board)
                 prior = float(node_probs[move_to_action(move)])
 
-                prior = self.heuristic(move, prior, child_board)
+                # prior = self.heuristic(move, prior, child_board)
+                prior = self.heuristic(move, prior)
 
                 # # -------- (heuristic) Slight bias towards checks and captures in order to promote attacking behaviours when winning/explore them more
                 # if node.board.is_capture(move) or child_board.is_check():
@@ -297,28 +298,28 @@ class MCTS:
         moves, probs = self.get_policy(root)
         return moves[int(probs.argmax())]
 
-    def heuristic(self, move: chess.Move, prior: float, board: chess.Board) -> float:
+    def heuristic(self, move: chess.Move, prior: float) -> float:
         if move.promotion == chess.QUEEN:
             prior += 0.4
         elif move.promotion:
             prior += 0.1
-        num_pieces = len(board.piece_map())
-        if num_pieces < 14:
-            scale = (-num_pieces + 14) / 14.0
+        # num_pieces = len(board.piece_map())
+        # if num_pieces < 14:
+        #     scale = (-num_pieces + 14) / 14.0
 
-            opp_king_square = board.king(not board.turn)
-            opp_rank = chess.square_rank(opp_king_square)
-            opp_file = chess.square_file(opp_king_square)
-            opp_dist_center_rank = max(3 - opp_rank, opp_rank - 4)
-            opp_dist_center_file = max(3 - opp_file, opp_file - 4)
-            opp_dist_center = opp_dist_center_file + opp_dist_center_rank
-            prior += opp_dist_center * scale * 0.05
+        #     opp_king_square = board.king(not board.turn)
+        #     opp_rank = chess.square_rank(opp_king_square)
+        #     opp_file = chess.square_file(opp_king_square)
+        #     opp_dist_center_rank = max(3 - opp_rank, opp_rank - 4)
+        #     opp_dist_center_file = max(3 - opp_file, opp_file - 4)
+        #     opp_dist_center = opp_dist_center_file + opp_dist_center_rank
+        #     prior += opp_dist_center * scale * 0.05
 
-            # prior -= board.legal_moves.count() * scale * 0.1
-            # print(board.legal_moves.count())
+        #     # prior -= board.legal_moves.count() * scale * 0.1
+        #     # print(board.legal_moves.count())
 
-            dist_bw_kings = chess.square_distance(board.king(False), board.king(True))
-            prior += (8 - dist_bw_kings) * scale * 0.02
+        #     dist_bw_kings = chess.square_distance(board.king(False), board.king(True))
+        #     prior += (8 - dist_bw_kings) * scale * 0.02
         return prior
 
 

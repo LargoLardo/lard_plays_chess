@@ -85,14 +85,6 @@ class EndgameMinimax:
         alpha_original = alpha
         key = chess.polyglot.zobrist_hash(board)
 
-        # Terminal positions
-        if board.is_checkmate():
-            print("Checkmate detected at ply", ply)
-            return -MATE_SCORE + ply, None
-
-        if board.is_stalemate() or board.is_insufficient_material():
-            return 0, None
-
         # Transposition table lookup
         if key in self.tt:
             entry = self.tt[key]
