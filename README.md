@@ -45,7 +45,7 @@ MCTS search consumes the GPU. Modal scales it to zero after five idle minutes.
 ```powershell
 pip install modal
 modal setup
-modal secret create tree-fish-config CORS_ORIGINS="*" MAX_SIMS=5000 MAX_CHECKPOINT_BYTES=786432000
+modal secret create tree-fish-config CORS_ORIGINS="*" MAX_SIMS=5000 MAX_CHECKPOINT_BYTES=786432000 ALLOW_CHECKPOINT_UPLOADS=false
 modal volume create tree-fish-checkpoints
 modal volume put tree-fish-checkpoints checkpoints/checkpoint_iter6000.pt /checkpoint_iter6000.pt
 modal deploy backend/modal_app.py
@@ -65,7 +65,10 @@ more reliable. If using the CLI while a container is warm, redeploy/restart the
 app so its mounted volume view refreshes.
 
 The `tree-fish-config` Modal Secret supplies `MAX_SIMS`,
-`MAX_CHECKPOINT_BYTES`, and `CORS_ORIGINS` to Flask. Replace `*` with your Vercel
+`MAX_CHECKPOINT_BYTES`, `ALLOW_CHECKPOINT_UPLOADS`, and `CORS_ORIGINS` to Flask.
+Production uses `ALLOW_CHECKPOINT_UPLOADS=false`, which removes the upload control
+and makes the upload endpoint return HTTP 403; add checkpoints with the Modal CLI.
+Replace `*` with your Vercel
 production URL if you do not want public CORS; for preview deployments, leave it
 as `*` or supply all allowed origins as a comma-separated value. `TORCH_DEVICE`
 can also be added to the secret when you need to override device selection.

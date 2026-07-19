@@ -4,6 +4,8 @@ The API is intentionally stateless: every engine request includes a FEN.  This
 makes it safe to run several browser games against an autoscaling deployment.
 """
 
+# modal volume put --env main tree-fish-checkpoints checkpoints\checkpoint_iter7000.pt /checkpoint_iter7000.pt
+
 from __future__ import annotations
 
 import argparse
@@ -29,6 +31,7 @@ def create_app(
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CHECKPOINT_BYTES", 750 * 1024 * 1024))
     CORS(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "*").split(",")}})
+    uploads_enabled = os.getenv("ALLOW_CHECKPOINT_UPLOADS", "true").lower() in {"1", "true", "yes"}
 
     service = EngineService(checkpoint_dir or os.getenv("CHECKPOINT_DIR", DEFAULT_CHECKPOINT_DIR))
     app.extensions["engine_service"] = service
@@ -39,10 +42,15 @@ def create_app(
 
     @app.get("/checkpoints")
     def checkpoints():
-        return {"checkpoints": service.list_checkpoints()}
+        return {
+            "checkpoints": service.list_checkpoints(),
+            "uploads_enabled": uploads_enabled,
+        }
 
     @app.post("/checkpoints")
     def upload_checkpoint():
+        if not uploads_enabled:
+            return {"error": "Checkpoint uploads are disabled on this deployment."}, 403
         uploaded = request.files.get("checkpoint")
         if uploaded is None or not uploaded.filename:
             return {"error": "Attach a .pt file in the 'checkpoint' field."}, 400

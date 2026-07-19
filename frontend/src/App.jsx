@@ -25,10 +25,12 @@ function App() {
   const [analysis, setAnalysis] = useState(null)
   const [timings, setTimings] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [uploadsEnabled, setUploadsEnabled] = useState(false)
 
   const refreshCheckpoints = useCallback(async (preferred = '') => {
     const data = await getCheckpoints()
     setCheckpoints(data.checkpoints)
+    setUploadsEnabled(Boolean(data.uploads_enabled))
     setCheckpoint((current) => {
       const wanted = preferred || current
       if (data.checkpoints.some((item) => item.name === wanted)) return wanted
@@ -155,9 +157,11 @@ function App() {
           </select>
         </label>
         <button className="primary" onClick={startGame} disabled={thinking || !checkpoint}>New game</button>
-        <label className="upload-button">{uploading ? 'Uploading…' : 'Upload .pt'}
-          <input type="file" accept=".pt,.pth" onChange={handleUpload} disabled={uploading || thinking} />
-        </label>
+        {uploadsEnabled && (
+          <label className="upload-button">{uploading ? 'Uploading…' : 'Upload .pt'}
+            <input type="file" accept=".pt,.pth" onChange={handleUpload} disabled={uploading || thinking} />
+          </label>
+        )}
       </section>
 
       {(error || status) && <div className={error ? 'notice error' : 'notice'}>{error || status}</div>}
