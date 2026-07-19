@@ -1,51 +1,26 @@
-export default async function sendMove(move_value) {
-    try {
-        console.log(move_value)
-        const res = await fetch('/send_move', {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json', 
-        },
-        body: JSON.stringify(move_value) 
-        });
-        if (res.ok) {
-            console.log('okay dokay!')
-            return res.json()
-        }
-    } catch (err) {
-        console.error(err)
-    }
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
+async function api(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, options)
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`)
+  return body
 }
 
-export async function resetBoard(starting_fen) {
-    try {
-        const res = await fetch('/send_move/reset_board', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ fen: starting_fen })
-        });
-        if (res.ok) {
-            console.log('Backend board reset!')
-        } else {
-            console.error("Something went wrong while resetting board.")
-        }
-    } catch (err) {
-        console.error(err)
-    }
+export function getCheckpoints() {
+  return api('/checkpoints')
 }
 
-// useEffect(() => {
-//     async function load() {
-//       try {
-//         const res = await fetch('/api');
-//         if (!res.ok) throw new Error(res.status);
-//         const data = await res.text()
-//         setPlaceholder(data)
-//       } catch (err) {
-//         setPlaceholder(err)
-//       }
-//     }
-//     load()
-//   }, []);
+export function requestEngineMove(fen, checkpoint, sims) {
+  return api('/engine/move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fen, checkpoint, sims }),
+  })
+}
+
+export function uploadCheckpoint(file) {
+  const form = new FormData()
+  form.append('checkpoint', file)
+  return api('/checkpoints', { method: 'POST', body: form })
+}
