@@ -16,7 +16,7 @@ function App() {
   const [game, setGame] = useState(() => new Chess(START_FEN))
   const [checkpoints, setCheckpoints] = useState([])
   const [checkpoint, setCheckpoint] = useState('')
-  const [sims, setSims] = useState(100)
+  const [sims, setSims] = useState(800)
   const [playerColor, setPlayerColor] = useState('w')
   const [selectedSquare, setSelectedSquare] = useState(null)
   const [thinking, setThinking] = useState(false)
