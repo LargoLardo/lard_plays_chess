@@ -32,10 +32,16 @@ DRAW_VALUE = -5.0
 """
 
 
-def position_key(board: chess.Board) -> str:
+def position_key(board: chess.Board) -> tuple:
     """FIDE repetition identity in the network's canonical orientation."""
-    canonical = canonicalize_board(board.copy(stack=False))
-    return " ".join(canonical.fen(en_passant="legal").split()[:4])
+    canonical = board if board.turn == chess.WHITE else board.mirror()
+    return (
+        canonical.pawns, canonical.knights, canonical.bishops,
+        canonical.rooks, canonical.queens, canonical.kings,
+        canonical.occupied_co[chess.WHITE], canonical.occupied_co[chess.BLACK],
+        canonical.turn, canonical.clean_castling_rights(),
+        canonical.ep_square if canonical.has_legal_en_passant() else None,
+    )
 
 class MCTSNode:
     """A node in the search tree."""
@@ -47,12 +53,13 @@ class MCTSNode:
         move: Optional[chess.Move] = None,
         prior: float = 0.0,
         repetition_count: int = 1,
+        key: tuple | None = None,
     ):
         self.board = board
         self.parent = parent
         self.move = move
         self.prior = prior
-        self.position_key = position_key(board)
+        self.position_key = key if key is not None else position_key(board)
         self.repetition_count = repetition_count
         self.children: dict[chess.Move, MCTSNode] = {}
         self.visit_count = 0
@@ -129,6 +136,7 @@ class MCTS:
         root = MCTSNode(
             board=root_board,
             repetition_count=self._repetition_counts.get(root_key, 1),
+            key=root_key,
         )
 
         # Expand root first
@@ -193,36 +201,22 @@ class MCTS:
                 values.append(0.0)
 
         if non_terminal_nodes:
-            self._expand_batch(non_terminal_nodes)
-
-            batch_tensors = []
-
-            for node in non_terminal_nodes:
-                tensor = board_to_tensor(node.board, device=self.device)
-                batch_tensors.append(tensor)
-
-            batch_tensors = torch.stack(batch_tensors, dim=0)
-
-            self.net.eval()
-            policy_logits, batch_values = self.net(batch_tensors)
-
-            network_values = -batch_values[:, 0].cpu().numpy()
-
-            for idx, val in zip(non_terminal_indices, network_values):
-                values[idx] = float(val)
+            expanded_values = self._expand_batch(non_terminal_nodes)
+            for idx, node in zip(non_terminal_indices, non_terminal_nodes):
+                values[idx] = expanded_values[node]
 
         return values
     
     @torch.no_grad()
-    def _expand_batch(self, nodes: list[MCTSNode]) -> None:
-        """Expand a batch of nodes with network priors."""
+    def _expand_batch(self, nodes: list[MCTSNode]) -> dict[MCTSNode, float]:
+        """Expand unique nodes and return their network values."""
         if not nodes:
-            return
+            return {}
         
         # Filter out already expanded or terminal nodes
-        to_expand = [n for n in nodes if not n.is_expanded and not self._is_terminal(n)]
+        to_expand = list(dict.fromkeys(n for n in nodes if not n.is_expanded and not self._is_terminal(n)))
         if not to_expand:
-            return
+            return {}
         
         # Create batched tensors
         batch_tensors = []
@@ -239,9 +233,10 @@ class MCTS:
         
         # Single forward pass
         self.net.eval()
-        policy_logits, _ = self.net(batch_tensors)
+        policy_logits, batch_values = self.net(batch_tensors)
         policy_logits = policy_logits.masked_fill(~batch_masks, float("-inf"))
         probs = torch.softmax(policy_logits, dim=1).cpu().numpy()
+        values = -batch_values[:, 0].cpu().numpy()
         
         # Create children for each node
         for node, node_probs in zip(to_expand, probs):
@@ -274,8 +269,10 @@ class MCTS:
                     move=move,
                     prior=prior,
                     repetition_count=repetition_count,
+                    key=child_key,
                 )
             node.is_expanded = True
+        return {node: float(value) for node, value in zip(to_expand, values)}
     
     def _terminal_value(self, node: MCTSNode, ply_from_root: int) -> float:
         """Return game outcome from current player's perspective."""
