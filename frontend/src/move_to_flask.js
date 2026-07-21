@@ -11,11 +11,11 @@ export function getCheckpoints() {
   return api('/checkpoints')
 }
 
-export function requestEngineMove(fen, checkpoint, sims) {
+export function requestEngineMove(fen, checkpoint, sims, moves) {
   return api('/engine/move', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fen, checkpoint, sims }),
+    body: JSON.stringify({ fen, checkpoint, sims, moves }),
   })
 }
 

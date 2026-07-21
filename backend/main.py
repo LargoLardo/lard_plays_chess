@@ -75,6 +75,7 @@ def create_app(
                 fen=payload.get("fen", ""),
                 checkpoint=payload.get("checkpoint", ""),
                 sims=payload.get("sims", 800),
+                moves=payload.get("moves"),
             )
             return jsonify(result)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
@@ -88,7 +89,7 @@ def create_app(
             return {"error": "This API now requires the current 'fen'."}, 400
         try:
             return jsonify(service.choose_move(
-                payload["fen"], payload.get("checkpoint", ""), payload.get("sims", 800)
+                payload["fen"], payload.get("checkpoint", ""), payload.get("sims", 800), payload.get("moves")
             ))
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             return {"error": str(exc)}, 400

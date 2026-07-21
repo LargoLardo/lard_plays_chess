@@ -98,7 +98,8 @@ new frontend deployment.
 - `GET /health` reports API/device readiness.
 - `GET /checkpoints` lists playable checkpoint files.
 - `POST /checkpoints` accepts multipart field `checkpoint`.
-- `POST /engine/move` accepts `{ "fen", "checkpoint", "sims" }`.
+- `POST /engine/move` accepts `{ "fen", "checkpoint", "sims", "moves" }`, where
+  `moves` is the UCI history used to validate the position and detect repetition.
 
 There is no server-side global chessboard. That is important on Modal: requests
 may arrive after a cold start, and one user's game must not overwrite another's.
@@ -106,3 +107,8 @@ Candidate `value` is the MCTS child's average Q value in `[-1, 1]`; it is a mode
 evaluation, not a Stockfish centipawn score. Visits show how the simulation
 budget was allocated. The displayed lines follow the most-visited continuation
 already present in the search tree, up to five plies.
+
+The browser keeps the current game's timeline in memory. Back/Forward reviews
+cached plies; making a move from an earlier player-turn position replaces the
+abandoned continuation. Download PGN exports only through the currently viewed
+ply. The timeline resets on refresh or New Game.

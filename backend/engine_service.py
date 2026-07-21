@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import threading
 import time
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from pathlib import Path
 from typing import BinaryIO
 
@@ -14,7 +14,7 @@ import torch
 
 from board_encoder import swap_move_color
 from endgame_search import EndgameMinimax
-from mcts import MCTS, MCTSNode
+from mcts import MCTS, MCTSNode, position_key
 from network import ChessNet
 
 
@@ -128,12 +128,37 @@ class EngineService:
             canonical_move = max(node.children, key=lambda move: node.children[move].visit_count)
         return line
 
-    def choose_move(self, fen: str, checkpoint: str, sims: int) -> dict:
+    @staticmethod
+    def _board_from_history(fen: str, moves: list[str] | None) -> tuple[chess.Board, Counter]:
         try:
-            board = chess.Board(fen)
+            requested_board = chess.Board(fen)
         except (TypeError, ValueError) as exc:
             raise ValueError("Invalid FEN.") from exc
-        if board.is_game_over():
+
+        if moves is None:  # Backward-compatible API clients cannot provide repetition history.
+            return requested_board, Counter({position_key(requested_board): 1})
+        if not isinstance(moves, list) or len(moves) > 1000 or not all(isinstance(move, str) for move in moves):
+            raise ValueError("Move history must be a list of at most 1000 UCI moves.")
+
+        board = chess.Board()
+        counts = Counter({position_key(board): 1})
+        for ply, uci in enumerate(moves, start=1):
+            try:
+                move = chess.Move.from_uci(uci)
+            except ValueError as exc:
+                raise ValueError(f"Invalid UCI move at ply {ply}.") from exc
+            if move not in board.legal_moves:
+                raise ValueError(f"Illegal move '{uci}' at ply {ply}.")
+            board.push(move)
+            counts[position_key(board)] += 1
+
+        if board.fen() != requested_board.fen():
+            raise ValueError("FEN does not match the supplied move history.")
+        return board, counts
+
+    def choose_move(self, fen: str, checkpoint: str, sims: int, moves: list[str] | None = None) -> dict:
+        board, repetition_counts = self._board_from_history(fen, moves)
+        if board.is_game_over() or board.is_repetition(3):
             raise ValueError("The game is already over.")
         if not checkpoint:
             available = self.list_checkpoints()
@@ -152,7 +177,7 @@ class EngineService:
 
         started = time.perf_counter()
         with self._search_lock:
-            root = engine.run(board=board, add_noise=False)
+            root = engine.run(board=board, add_noise=False, repetition_counts=repetition_counts)
         elapsed = time.perf_counter() - started
         moves = list(root.children)
         if not moves:

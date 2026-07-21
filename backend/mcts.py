@@ -31,6 +31,12 @@ DRAW_VALUE = -5.0
 (0.0) Discourages/encourages the bot drawing.
 """
 
+
+def position_key(board: chess.Board) -> str:
+    """FIDE repetition identity in the network's canonical orientation."""
+    canonical = canonicalize_board(board.copy(stack=False))
+    return " ".join(canonical.fen(en_passant="legal").split()[:4])
+
 class MCTSNode:
     """A node in the search tree."""
     
@@ -40,11 +46,14 @@ class MCTSNode:
         parent: Optional[MCTSNode] = None,
         move: Optional[chess.Move] = None,
         prior: float = 0.0,
+        repetition_count: int = 1,
     ):
         self.board = board
         self.parent = parent
         self.move = move
         self.prior = prior
+        self.position_key = position_key(board)
+        self.repetition_count = repetition_count
         self.children: dict[chess.Move, MCTSNode] = {}
         self.visit_count = 0
         self.value_sum = 0.0
@@ -106,10 +115,21 @@ class MCTS:
         self.dirichlet_alpha = dirichlet_alpha
         self.temperature = temperature
     
-    def run(self, board: chess.Board = None, add_noise: bool = False) -> MCTSNode:
+    def run(
+        self,
+        board: chess.Board = None,
+        add_noise: bool = False,
+        repetition_counts: dict[str, int] | None = None,
+    ) -> MCTSNode:
         """Run num_sims simulations with batched evaluation."""
 
-        root = MCTSNode(board=canonicalize_board(board.copy(stack=False)))
+        root_board = canonicalize_board(board.copy(stack=False))
+        self._repetition_counts = dict(repetition_counts or {})
+        root_key = position_key(root_board)
+        root = MCTSNode(
+            board=root_board,
+            repetition_count=self._repetition_counts.get(root_key, 1),
+        )
 
         # Expand root first
         self._expand_batch([root])
@@ -130,7 +150,7 @@ class MCTS:
                 node = root
                 path = [node]
 
-                while node.is_expanded and not node.board.is_game_over():
+                while node.is_expanded and not self._is_terminal(node):
                     node = max(
                         node.children.values(),
                         key=lambda c: c.puct_score(self.c_puct, node.visit_count)
@@ -165,7 +185,7 @@ class MCTS:
         non_terminal_indices = []
 
         for i, (node, depth) in enumerate(zip(nodes, depths)):
-            if node.board.is_game_over():
+            if self._is_terminal(node):
                 values.append(self._terminal_value(node, depth))
             else:
                 non_terminal_nodes.append(node)
@@ -200,7 +220,7 @@ class MCTS:
             return
         
         # Filter out already expanded or terminal nodes
-        to_expand = [n for n in nodes if not n.is_expanded and not n.board.is_game_over()]
+        to_expand = [n for n in nodes if not n.is_expanded and not self._is_terminal(n)]
         if not to_expand:
             return
         
@@ -233,6 +253,13 @@ class MCTS:
                 child_board.push(move)
                 child_board = canonicalize_board(child_board)
                 prior = float(node_probs[move_to_action(move)])
+                child_key = position_key(child_board)
+                repetition_count = self._repetition_counts.get(child_key, 0) + 1
+                ancestor = node
+                while ancestor.parent is not None:
+                    if ancestor.position_key == child_key:
+                        repetition_count += 1
+                    ancestor = ancestor.parent
 
                 # prior = self.heuristic(move, prior, child_board)
                 prior = self.heuristic(move, prior)
@@ -246,11 +273,14 @@ class MCTS:
                     parent=node,
                     move=move,
                     prior=prior,
+                    repetition_count=repetition_count,
                 )
             node.is_expanded = True
     
     def _terminal_value(self, node: MCTSNode, ply_from_root: int) -> float:
         """Return game outcome from current player's perspective."""
+        if node.repetition_count >= 3:
+            return DRAW_VALUE
         outcome = node.board.outcome()
 
         # print(f"terminal node reached {ply_from_root} deep")
@@ -261,6 +291,10 @@ class MCTS:
 
         # In a checkmated position, board.turn is the loser.
         return max(MATE_BASE - ply_from_root, 1.0)
+
+    @staticmethod
+    def _is_terminal(node: MCTSNode) -> bool:
+        return node.repetition_count >= 3 or node.board.is_game_over()
     
     def _backprop(self, path: list[MCTSNode], value: float) -> None:
         """Update visit counts and value sums along path."""

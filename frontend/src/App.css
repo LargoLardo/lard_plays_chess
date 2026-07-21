@@ -24,6 +24,9 @@ button:disabled, .upload-button:has(input:disabled) { opacity: .45; cursor: not-
 .board-panel { min-width: 0; }
 .board-panel > div:first-child { border: 1px solid #363c46; box-shadow: 0 24px 60px rgba(0,0,0,.3); }
 .turn-label { margin-top: 12px; color: #9299a6; font: 12px var(--mono); }
+.history-controls { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.history-controls button { height: 34px; padding: 0 12px; }
+.history-controls span { min-width: 92px; color: #9299a6; font: 11px var(--mono); }
 .analysis-panel { max-height: calc(100vh - 210px); overflow: auto; border: 1px solid #2b3038; border-radius: 12px; background: #181b20; text-align: left; }
 .panel-heading, .lines, .moves-table, .timings { padding: 18px 20px; border-bottom: 1px solid #2b3038; }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; }
@@ -53,4 +56,5 @@ button:disabled, .upload-button:has(input:disabled) { opacity: .45; cursor: not-
   .control-bar { grid-template-columns: 1fr; }.control-bar label:first-child { grid-column: auto; }
   .workspace { display: block; }.analysis-panel { margin-top: 16px; }
   .table-row { grid-template-columns: 24px 1fr 64px 82px; }
+  .history-controls { flex-wrap: wrap; }
 }
